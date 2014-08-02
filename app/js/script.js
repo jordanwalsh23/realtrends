@@ -2,7 +2,7 @@
 var serverUrl = 'https://j2uwpaid31:hpw6yydziz@realtrends-jordan-lo-8230931152.eu-west-1.bonsai.io/building_data/_search?';
 var searchIndex = 'elasticsearch';
 
-var enableHeatMap = true;
+var enableHeatMap = false;
 var enableMarkers = true;
 var enableSuburbs = true;
 
@@ -17,8 +17,10 @@ var heatmapoptions = {
 	blur: 10
 }
 
-var markers = new Array();
+var markerArray = new Array();
 var addressPoints = new Array();
+
+var markerGroup = null;
 
 jQuery(document).ready(function($) {
 
@@ -32,19 +34,18 @@ jQuery(document).ready(function($) {
 	//----------------------------------------------------------------------------------------------------------------
 	// ANIMATE NAV BAR IN ON READY
 	//----------------------------------------------------------------------------------------------------------------
-		setTimeout(function(){
-			$('.logo').removeClass('fadedOut');
-		},250);
-		setTimeout(function(){
-			$('#search').removeClass('fadedOut');
-		},500);
-		setTimeout(function(){
-			$('#timelineBtn').removeClass('fadedOut');
-		},750);
-		setTimeout(function(){
-			$('#filterBtn').removeClass('fadedOut');
-		},1000);
-
+	setTimeout(function(){
+		$('.logo').removeClass('fadedOut');
+	},250);
+	setTimeout(function(){
+		$('#search').removeClass('fadedOut');
+	},500);
+	setTimeout(function(){
+		$('#timelineBtn').removeClass('fadedOut');
+	},750);
+	setTimeout(function(){
+		$('#filterBtn').removeClass('fadedOut');
+	},1000);
 
 	//----------------------------------------------------------------------------------------------------------------
 	// LOADING SCREEN
@@ -52,6 +53,70 @@ jQuery(document).ready(function($) {
 	var docHeight = $(document).height();
 	$('#loading').css('height', docHeight);
 	$('.loadlogo').css('margin-top', (docHeight/2)-110  );
+
+	//----------------------------------------------------------------------------------------------------------------
+	//LEAFLET MAP INITIALIZATION
+	//----------------------------------------------------------------------------------------------------------------
+
+	//set map height
+	var mapDiv = $('#map');
+	mapDiv.css('height',  $(window).height() - 40);
+
+	//init map
+	var map = L.map('map',{
+    	center: [-37.00, 145],
+    	zoom: 7,
+    	maxZoom: 12,
+    	minZoom: 7
+	});
+
+	var tiles = L.tileLayer('http://{s}.tiles.mapbox.com/v3/{id}/{z}/{x}/{y}.png', {
+	    attribution: '',
+	    id: 'examples.map-20v6611k'
+	}).addTo(map);
+
+	markerGroup = resetMarkerGroup();
+
+	//Geocoding service with Google's Service
+	var geocoder;
+	geocoder = new google.maps.Geocoder();
+
+	function moveMapToLocation(search) {
+	  var address = search + ", victoria, australia";
+	  geocoder.geocode( {'address': address}, function(results, status) {
+	    if (status == google.maps.GeocoderStatus.OK) {
+	      setMap(results[0].geometry.location.k,results[0].geometry.location.B);
+	    } else {
+	      console.log('Geocode was not successful for the following reason: ' + status);
+	    }
+	  });
+	}
+
+	function setMap(lat, lon) {
+		map.setView([parseFloat(lat),parseFloat(lon)],18);
+
+		if(map.getZoom() >= 12) {
+			executeSearch();
+		}
+	}
+
+	function onMapClick(e) {
+	    $("#infoPanel").fadeOut(200);
+	}
+
+	map.on('click', onMapClick);
+
+	map.on('dragend', function(e) {
+		if(map.getZoom() >= 12) {
+			executeSearch();
+		}
+	});
+
+	map.on('zoomend', function() {
+		if(map.getZoom() >= 12) {
+			executeSearch();
+		}
+	});
 
 	//----------------------------------------------------------------------------------------------------------------
 	// FACET VIEW
@@ -79,7 +144,7 @@ jQuery(document).ready(function($) {
 	    initialsearch: true,
 	    facets: [],
 	    paging: {
-	      size: 500
+	      size: 1000
 	    },
 	    on_results_returned: function(sdata) {
 
@@ -103,7 +168,6 @@ jQuery(document).ready(function($) {
 	              	
 	              	//lots of undefined data in the database so validate that lat and lon exists.
 	              	if(lat && lon) {
-
 	              		var point = new Array(lon,lat);
 
 	              		if(enableHeatMap) {
@@ -111,31 +175,52 @@ jQuery(document).ready(function($) {
 	              		}
 	              	  
 	              		if(enableMarkers) {
-	              			if(map.getZoom() >= 8) {
-	              				var marker = addMarker(point);
-		           	  			addInfoToMarker(marker, value._source);
+	              			if(map.getZoom() >= 0) {
+	              				var marker = createMarker(point);
+								
+								//Add information popup to each marker
+								addInfoToMarker(marker, value._source);
+	              				
+	              				//Add marker to cluster
+	              				markerGroup.addLayer(marker);
 	              			}
 	              		}
 	              	}
 	            }
 
-	            $("#loading").fadeOut(1000);
+	            
 	        });
+
+	        $("#loading").fadeOut(1000);
+
+	        map.addLayer(markerGroup);
 	    },
 	    searchwrap_start: '<table class="table table-striped table-bordered" id="facetview_results"><thead><tr><td></td><th>Site Street</th><th>Site Suburb</th><th>Site Postcode</th><th>Permit Approval Date</th><th>Geocode</th></tr></thead><tbody>',
 	    searchwrap_end: '</tbody></table>'
 	});
 
+	//Returns the geocode array (lat,lon) for the supplied postcode
+	function getGeocode(value) {
+		var geocode;
 
-	function removeAllMarkers() {
-		for(var i = 0; i < markers.length; i++) {
-			map.removeLayer(markers[i]);
-		}
+		if(value && value._source && value._source.postcode_geocode == undefined ) {
+          var postcode = value._source.site_pcode ? value._source.site_pcode : "";
+          geocode = json[postcode];
+        } else {
+          geocode = value._source.postcode_geocode;
+        }
+
+        return geocode;
 	}
 
-	function addMarker(mark) {
-		var marker = L.marker(mark).addTo(map);
-      	markers.push(marker);
+	//----------------------------------------------------------------------------------------------------------------
+	// ADD TO MAP FUNCTIONS
+	//----------------------------------------------------------------------------------------------------------------
+
+
+	function createMarker(mark) {
+		var marker = L.marker(mark);
+      	markerArray.push(marker);
       	return marker;
 	}
 
@@ -158,8 +243,6 @@ jQuery(document).ready(function($) {
       	marker.on('click', function(){ populateContent(markerData);} )
 	}
 
-	$("#infoPanel").hide();
-
 	function addHeatMap(point) {
 		
 		if(point) {
@@ -174,32 +257,122 @@ jQuery(document).ready(function($) {
         }
 	}
 
+	function resetMarkerGroup() {
+		
+		if( markerGroup ) {
+			markerGroup = null;
+		}
+		
+		return L.markerClusterGroup();
+	}
+	
+	//----------------------------------------------------------------------------------------------------------------
+	// REMOVE FROM MAP FUNCTIONS
+	//----------------------------------------------------------------------------------------------------------------
+
+
+	function removeAllMarkers() {
+		map.removeLayer(markerGroup);
+		markerGroup = resetMarkerGroup();
+	}
+
 	function removeAllHeatMaps() {
 		addressPoints = new Array();
 		addHeatMap();
 	}
 
-	function getGeocode(value) {
-		var geocode;
+	function populateContent(json) {
+		$("#infoPanel").fadeOut(200, function() {
+			$("#suburb").html(json["suburb"]);
+			$(".average-cost .value").html("$"+json["estimatedCost"]);
+			$(".additional-dwellings .value").html(json["additionalDwellings"]);
+			$(".permit-app-date .value").html(json["permitDate"]);
+			$(".postcode .value").html(json["site_pcode"]);
 
-		if(value && value._source && value._source.postcode_geocode == undefined ) {
-          var postcode = value._source.site_pcode ? value._source.site_pcode : "";
-          geocode = json[postcode];
-        } else {
-          geocode = value._source.postcode_geocode;
-        }
+			var permitType = json["permitType"].split('	');
+			var str = ['<ul>'];
+			var temp;
 
-        return geocode;
+			for(var i=0; i<permitType.length; i++){
+				if ( permitType[i] == '1' ){
+					str.push('<li>Residential</li>');
+				}
+				else if ( permitType[i] == '1A' ){
+					str.push('<li>Single Dwelling</li>');
+				}
+				else if ( permitType[i] == '1AI' ){
+					str.push('<li>Detached House</li>');
+				}
+				else if ( permitType[i] == '1AII' ){
+					str.push('<li>Townhouse/Villa</li>');
+				}
+				else if ( permitType[i] == '1B' || permitType[i] == '1BI' || permitType[i] == '1BII'){
+					str.push('<li>Guesthouse/Hostel</li>');
+				}
+				else if ( permitType[i] == '2' ){
+					str.push('<li>Apartment/Townhouse</li>');
+				}
+				else if ( permitType[i] == '3' || permitType[i] == '3A' || permitType[i] == '3B' || permitType[i] == '3C' || permitType[i] == '3D' || permitType[i] == '3E' || permitType[i] == '3F' ){
+					str.push('<li>Residential</li>');
+				}
+				else if ( permitType[i] == '4' || permitType[i] == '5' || permitType[i] == '6A' || permitType[i] == '6B' || permitType[i] == '6C' || permitType[i] == '6D'  ){
+					str.push('<li>Commercial</li>');
+				}
+				else if ( permitType[i] == '7'  ){
+					str.push('<li>Carpark/Storage/Wholesale</li>');
+				}
+				else if ( permitType[i] == '7A' ){
+					str.push('<li>Carpark</li>');
+				}
+				else if ( permitType[i] == '7B' ){
+					str.push('<li>Storage/Wholesale</li>');
+				}
+				else if ( permitType[i] == '8' ){
+					str.push('<li>Laboratory/Factory</li>');
+				}
+				else if ( permitType[i] == '9' ){
+					str.push('<li>Commercial</li>');
+				}
+				else if ( permitType[i] == '9A' ){
+					str.push('<li>Health Care Building</li>');
+				}
+				else if ( permitType[i] == '9B' ){
+					str.push('<li>Building within a School</li>');
+				}
+				else if ( permitType[i] == '9C' ){
+					str.push('<li>Aged Care Building</li>');
+				}
+				else if ( permitType[i] == '10' ){
+					str.push('<li>Non-habitable Structure</li>');
+				}
+				else if ( permitType[i] == '10A' ){
+					str.push('<li>Garage/Carport/Shed</li>');
+				}
+				else if ( permitType[i] == '10B' ){
+					str.push('<li>Fence/Mast/Antenna/Wall/Swimming Pool</li>');
+				}
+				else if ( permitType[i] == '10C' ){
+					str.push('<li>Private Bushfire Shelter</li>');
+				}
+			
+			}
+			str.push('</ul>');
+			$(".type .value").html(str.join(''));
+
+		});
+
+		$("#infoPanel").fadeIn(200);
 	}
 
-	//hide buttongruop
+	//hide buttongroup
 	$('.facetview_search_options_container .btn-group:eq(0)').css('display','none');
 
+	//hide the infopanel
+	$("#infoPanel").hide();
 
 	//----------------------------------------------------------------------------------------------------------------
 	// TIME LINE SLIDER
 	//----------------------------------------------------------------------------------------------------------------
-
 
 	var dateArrayStart = [
 		['Q1 2006','01/01/2006'],
@@ -314,7 +487,6 @@ jQuery(document).ready(function($) {
 		}
 	});
 
-
 	$timeline.noUiSlider({
 
 		start: [0, dateArrayStart.length - 1],
@@ -333,7 +505,6 @@ jQuery(document).ready(function($) {
 			upper: [ toolTip ]
 		}
 	});
-
 
 	function displayDate(){
 		var timelineVals = $timeline.val();
@@ -384,6 +555,7 @@ jQuery(document).ready(function($) {
 
 
 	});
+
 	//----------------------------------------------------------------------------------------------------------------
 	// Search functions
 	//----------------------------------------------------------------------------------------------------------------
@@ -429,167 +601,6 @@ jQuery(document).ready(function($) {
 	}
 
 	//----------------------------------------------------------------------------------------------------------------
-	// Utility functions
-	//----------------------------------------------------------------------------------------------------------------
-	
-	//Delay manages timed functions, used for search etc.
-
-	var delay = (function(){
-	  var timer = 0;
-	  return function(callback, ms){
-	    clearTimeout (timer);
-	    timer = setTimeout(callback, ms);
-	  };
-	})();
-
-
-	//Geocoding service with Google's Service
-
-	var geocoder;
-	geocoder = new google.maps.Geocoder();
-
-	function moveMapToLocation(search) {
-	  var address = search + ", victoria, australia";
-	  geocoder.geocode( {'address': address}, function(results, status) {
-	    if (status == google.maps.GeocoderStatus.OK) {
-	      setMap(results[0].geometry.location.k,results[0].geometry.location.B);
-	    } else {
-	      console.log('Geocode was not successful for the following reason: ' + status);
-	    }
-	  });
-	}
-
-	function setMap(lat, lon) {
-		map.setView([parseFloat(lat),parseFloat(lon)],10);
-
-		if(map.getZoom() >= 12) {
-			executeSearch();
-		}
-	}
-
-	//----------------------------------------------------------------------------------------------------------------
-	//LEAFLET MAP INIT
-	//----------------------------------------------------------------------------------------------------------------
-
-	//set map height
-	var $map = $('#map');
-	$map.css('height',  $(window).height() - 40);
-
-	//init map
-	var map = L.map('map',{
-    	center: [-37.00, 145],
-    	zoom: 7,
-    	maxZoom: 12,
-    	minZoom: 7
-	});
-
-	var tiles = L.tileLayer('http://{s}.tiles.mapbox.com/v3/{id}/{z}/{x}/{y}.png', {
-	    attribution: '',
-	    id: 'examples.map-20v6611k'
-	}).addTo(map);
-
-	function populateContent(json) {
-		$("#infoPanel").fadeOut(200, function() {
-			$("#suburb").html(json["suburb"]);
-			$(".average-cost .value").html("$"+json["estimatedCost"]);
-			$(".additional-dwellings .value").html(json["additionalDwellings"]);
-			$(".permit-app-date .value").html(json["permitDate"]);
-			$(".postcode .value").html(json["site_pcode"]);
-
-			var permitType = json["permitType"].split('	');
-			var str = ['<ul>'];
-			var temp;
-
-			for(var i=0; i<permitType.length; i++){
-				if ( permitType[i] == '1' ){
-					str.push('<li>Residential</li>');
-				}
-				else if ( permitType[i] == '1A' ){
-					str.push('<li>Single Dwelling</li>');
-				}
-				else if ( permitType[i] == '1AI' ){
-					str.push('<li>Detached House</li>');
-				}
-				else if ( permitType[i] == '1AII' ){
-					str.push('<li>Townhouse/Villa</li>');
-				}
-				else if ( permitType[i] == '1B' || permitType[i] == '1BI' || permitType[i] == '1BII'){
-					str.push('<li>Guesthouse/Hostel</li>');
-				}
-				else if ( permitType[i] == '2' ){
-					str.push('<li>Apartment/Townhouse</li>');
-				}
-				else if ( permitType[i] == '3' || permitType[i] == '3A' || permitType[i] == '3B' || permitType[i] == '3C' || permitType[i] == '3D' || permitType[i] == '3E' || permitType[i] == '3F' ){
-					str.push('<li>Residential</li>');
-				}
-				else if ( permitType[i] == '4' || permitType[i] == '5' || permitType[i] == '6A' || permitType[i] == '6B' || permitType[i] == '6C' || permitType[i] == '6D'  ){
-					str.push('<li>Commercial</li>');
-				}
-				else if ( permitType[i] == '7'  ){
-					str.push('<li>Carpark/Storage/Wholesale</li>');
-				}
-				else if ( permitType[i] == '7A' ){
-					str.push('<li>Carpark</li>');
-				}
-				else if ( permitType[i] == '7B' ){
-					str.push('<li>Storage/Wholesale</li>');
-				}
-				else if ( permitType[i] == '8' ){
-					str.push('<li>Laboratory/Factory</li>');
-				}
-				else if ( permitType[i] == '9' ){
-					str.push('<li>Commercial</li>');
-				}
-				else if ( permitType[i] == '9A' ){
-					str.push('<li>Health Care Building</li>');
-				}
-				else if ( permitType[i] == '9B' ){
-					str.push('<li>Building within a School</li>');
-				}
-				else if ( permitType[i] == '9C' ){
-					str.push('<li>Aged Care Building</li>');
-				}
-				else if ( permitType[i] == '10' ){
-					str.push('<li>Non-habitable Structure</li>');
-				}
-				else if ( permitType[i] == '10A' ){
-					str.push('<li>Garage/Carport/Shed</li>');
-				}
-				else if ( permitType[i] == '10B' ){
-					str.push('<li>Fence/Mast/Antenna/Wall/Swimming Pool</li>');
-				}
-				else if ( permitType[i] == '10C' ){
-					str.push('<li>Private Bushfire Shelter</li>');
-				}
-			
-			}
-			str.push('</ul>');
-			$(".type .value").html(str.join(''));
-
-		});
-
-		$("#infoPanel").fadeIn(200);
-	}
-
-	function onMapClick(e) {
-	    $("#infoPanel").fadeOut(200);
-	}
-
-	map.on('click', onMapClick);
-
-	map.on('dragend', function(e) {
-		if(map.getZoom() >= 12) {
-			executeSearch();
-		}
-	});
-
-	map.on('zoomend', function() {
-		if(map.getZoom() >= 12) {
-			executeSearch();
-		}
-	});
-
-	//----------------------------------------------------------------------------------------------------------------
 	//LEAFLET ADD BOUNDARIES
 	//----------------------------------------------------------------------------------------------------------------
 	var bounds = JSON.parse(localStorage.bounds);
@@ -605,7 +616,6 @@ jQuery(document).ready(function($) {
 	                      '#FFEDA0';
 	}
 
-
 	//adds interaction to the map
 	function style(feature) {
 	    return {
@@ -618,7 +628,6 @@ jQuery(document).ready(function($) {
 	        fillOpacity: 0
 	    };
 	}
-
 
 	function highlightFeature(e) {
 	    var layer = e.target;
@@ -634,7 +643,6 @@ jQuery(document).ready(function($) {
 	    }
 	}
 
-
 	function resetHighlight(e) {
 	    var layer = e.target;
     	layer.setStyle({
@@ -646,7 +654,7 @@ jQuery(document).ready(function($) {
 	}
 	
 	function zoomToFeature(e) {
-		console.log(e.target.feature.properties.poa_2006)
+		//console.log(e.target.feature.properties.poa_2006)
 	    map.fitBounds(e.target.getBounds());
 	    resetSearch();
 	}
@@ -661,36 +669,30 @@ jQuery(document).ready(function($) {
 	    });
 	}
 
-	var legend = L.control({position: 'bottomright'});
-	
-	legend.onAdd = function (map) {
-
-	    var div = L.DomUtil.create('div', 'info legend'),
-	        grades = [0, 10, 20, 50, 100, 200, 500, 1000],
-	        labels = [];
-
-	    // loop through our density intervals and generate a label with a colored square for each interval
-	    for (var i = 0; i < grades.length; i++) {
-	        div.innerHTML +=
-	            '<i style="background:' + getColor(grades[i] + 1) + '"></i> ' +
-	            grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
-	    }
-
-	    return div;
-	};
-
 	function enableBounds(){
 		//addmap
 		L.geoJson(bounds, {style: style}).addTo(map);
 
-		//adde event listeners
+		//add event listeners
 		geojson = L.geoJson(bounds, {
 		    style: style,
 		    onEachFeature: onEachFeature
 		}).addTo(map);
 		geojson = L.geoJson();
-
 	}
 
+	//----------------------------------------------------------------------------------------------------------------
+	// Utility functions
+	//----------------------------------------------------------------------------------------------------------------
+	
+	//Delay manages timed functions, used for search etc.
+
+	var delay = (function(){
+	  var timer = 0;
+	  return function(callback, ms){
+	    clearTimeout (timer);
+	    timer = setTimeout(callback, ms);
+	  };
+	})();
 
 });
