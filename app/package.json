@@ -1,7 +1,7 @@
 {
-  "name": "realtrends",
-  "version": "0.2",
-  "description": "Showing real estate building trends based on suburb",
+  "name": "realtrends-v2",
+  "version": "0.0.2",
+  "description": "Real Trends helping you minimize risk in investment v2",
   "main": "index.html",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -10,16 +10,22 @@
     "type": "git",
     "url": "https://github.com/jordanwalsh23/realtrends"
   },
-  "author": "RealTrends",
+  "keywords": [
+    "property",
+    "real",
+    "estate",
+    "trends"
+  ],
+  "author": "Jordan Walsh",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/jordanwalsh23/realtrends/issues"
   },
-  "homepage": "http://realtrends-v2.herokuapp.com",
-  "engines": {
-    "node": "0.10.x"
-  },
+  "homepage": "https://github.com/jordanwalsh23/realtrends",
   "dependencies": {
     "http-server": "^0.6.1"
+  },
+  "engines": {
+    "node": "0.10.x"
   }
 }
