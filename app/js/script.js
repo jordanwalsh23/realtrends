@@ -93,44 +93,31 @@ jQuery(document).ready(function($) {
           		enableBounds();
           	}
 
-	        $.each(sdata.hits.hits, function(index, value){
+	        $.each(sdata.hits.hits, function(index, value) {
 
 	            var geocode = getGeocode(value);
 
 	            if(geocode) {
-	              var lon = parseFloat(geocode[1]);
-	              var lat = parseFloat(geocode[0]);
-	              //lots of undefined data in the database so validate that lat and lon exists.
-	              if(lat && lon) {
+	             	var lon = parseFloat(geocode[1]);
+	             	var lat = parseFloat(geocode[0]);
+	              	
+	              	//lots of undefined data in the database so validate that lat and lon exists.
+	              	if(lat && lon) {
 
-	              	var markerData = {
-	              		"suburb" : value._source.Site_suburb,
-	              		"municipality" : value._source.site_municipality,
-	              		"permitType" : value._source.Building_classification_1,
-	              		"estimatedCost" : value._source.est_cost_project,
-	              		"additionalDwellings" : "None",
-	              		"site_pcode" : value._source.site_pcode,
-	              		"permitDate": value._source.Permit_app_date
-	              	}
+	              		var point = new Array(lon,lat);
 
-	              	var point = new Array(lon,lat);
-
-	              	if(enableHeatMap) {
-		              	addHeatMap(point);
-	              	}
+	              		if(enableHeatMap) {
+		              		addHeatMap(point);
+	              		}
 	              	  
-	              	if(enableMarkers) {
-	              		if(map.getZoom() >= 12) {
-	              			var mark = addMarker(point);
-		           	  		addPointToMarker(mark, value._source);
+	              		if(enableMarkers) {
+	              			if(map.getZoom() >= 8) {
+	              				var marker = addMarker(point);
+		           	  			addInfoToMarker(marker, value._source);
+	              			}
 	              		}
 	              	}
-	              }
 	            }
-
-	            if(map.getZoom() < 12) {
-          			removeAllMarkers();
-          		}	
 
 	            $("#loading").fadeOut(1000);
 	        });
@@ -152,20 +139,20 @@ jQuery(document).ready(function($) {
       	return marker;
 	}
 
-	function addPointToMarker(marker, data) {
+	function addInfoToMarker(marker, info) {
 
 		var markerData = {
-      		"suburb" : data.Site_suburb,
-      		"municipality" : data.site_municipality,
-      		"permitType" : data.Building_classification_1,
-      		"estimatedCost" : data.est_cost_project,
+      		"suburb" : info.Site_suburb,
+      		"municipality" : info.site_municipality,
+      		"permitType" : info.Building_classification_1,
+      		"estimatedCost" : info.est_cost_project,
       		"additionalDwellings" : "None",
-      		"site_pcode" : data.site_pcode,
-	        "permitDate": data.Permit_app_date
+      		"site_pcode" : info.site_pcode,
+	        "permitDate": info.Permit_app_date
       	}
 
-      	if(data.dwellings_after_work > data.dwellings_before_work) {
-      		markerData["additionalDwellings"] = data.dwellings_after_work - data.dwellings_before_work;
+      	if(info.dwellings_after_work > info.dwellings_before_work) {
+      		markerData["additionalDwellings"] = info.dwellings_after_work - info.dwellings_before_work;
       	}
 
       	marker.on('click', function(){ populateContent(markerData);} )
@@ -409,8 +396,13 @@ jQuery(document).ready(function($) {
 
 	function textSearch(text) {
 		var query = text;
+		
+		//set the hidden input box to have the same query string
 		$("#facet_search").val(query);
-		geocode(text);
+	
+		moveMapToLocation(text);
+		
+		//Force the facetsearch to start
 		executeSearch();
 	}
 
@@ -422,9 +414,9 @@ jQuery(document).ready(function($) {
 	}
 
 	function executeSearch() {
-		$("#loading").show();
+		//$("#loading").show();
 		$("#infoPanel").fadeOut(200);
-		$('#facet_search').keydown();
+	    $('#facet_search').keydown();
 	    $('#facet_search').keypress();
 	    $('#facet_search').keyup();
 	    $('#facet_search').blur();
@@ -434,7 +426,6 @@ jQuery(document).ready(function($) {
 		$("#facet_search").val("");
 		$('#search').val("");
 		executeSearch();
-
 	}
 
 	//----------------------------------------------------------------------------------------------------------------
@@ -457,20 +448,18 @@ jQuery(document).ready(function($) {
 	var geocoder;
 	geocoder = new google.maps.Geocoder();
 
-	function geocode(search) {
+	function moveMapToLocation(search) {
 	  var address = search + ", victoria, australia";
 	  geocoder.geocode( {'address': address}, function(results, status) {
 	    if (status == google.maps.GeocoderStatus.OK) {
-	      //console.log(results[0].geometry.location);
-	      moveMap(results[0].geometry.location.k,results[0].geometry.location.B);
+	      setMap(results[0].geometry.location.k,results[0].geometry.location.B);
 	    } else {
 	      console.log('Geocode was not successful for the following reason: ' + status);
 	    }
 	  });
 	}
 
-	function moveMap(lat, lon) {
-
+	function setMap(lat, lon) {
 		map.setView([parseFloat(lat),parseFloat(lon)],10);
 
 		if(map.getZoom() >= 12) {
@@ -500,9 +489,6 @@ jQuery(document).ready(function($) {
 	}).addTo(map);
 
 	function populateContent(json) {
-
-
-		
 		$("#infoPanel").fadeOut(200, function() {
 			$("#suburb").html(json["suburb"]);
 			$(".average-cost .value").html("$"+json["estimatedCost"]);
@@ -704,29 +690,7 @@ jQuery(document).ready(function($) {
 		}).addTo(map);
 		geojson = L.geoJson();
 
-		var legend = L.control({position: 'bottomright'});
-		
-		legend.onAdd = function (map) {
-
-		    var div = L.DomUtil.create('div', 'info legend'),
-		        grades = [0, 10, 20, 50, 100, 200, 500, 1000],
-		        labels = [];
-
-		    // loop through our density intervals and generate a label with a colored square for each interval
-		    for (var i = 0; i < grades.length; i++) {
-		        div.innerHTML +=
-		            '<i style="margin: 100px; background:' + getColor(grades[i] + 1) + '"></i> ' +
-		            grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
-		    }
-
-		    return div;
-		};
-
-		geojson = L.geoJson();
-
 	}
-
-	//legend.addTo(map);
 
 
 });
