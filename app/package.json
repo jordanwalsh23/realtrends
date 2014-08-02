@@ -1,6 +1,6 @@
 {
   "name": "realtrends",
-  "version": "0.0.1",
+  "version": "0.2",
   "description": "Showing real estate building trends based on suburb",
   "main": "index.html",
   "scripts": {
@@ -8,14 +8,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/mebinum/realtrends"
+    "url": "https://github.com/jordanwalsh23/realtrends"
   },
-  "author": "SEED Digital",
+  "author": "RealTrends",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/mebinum/realtrends/issues"
+    "url": "https://github.com/jordanwalsh23/realtrends/issues"
   },
-  "homepage": "https://github.com/mebinum/realtrends",
+  "homepage": "http://realtrends-v2.herokuapp.com",
   "engines": {
     "node": "0.10.x"
   },
