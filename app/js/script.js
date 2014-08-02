@@ -22,6 +22,20 @@ var addressPoints = new Array();
 
 var markerGroup = null;
 
+//----------------------------------------------------------------------------------------------------------------
+// Utility functions
+//----------------------------------------------------------------------------------------------------------------
+
+//Delay manages timed functions, used for search etc.
+
+var delay = (function(){
+  var timer = 0;
+  return function(callback, ms){
+    clearTimeout (timer);
+    timer = setTimeout(callback, ms);
+  };
+})();
+
 jQuery(document).ready(function($) {
 
 	setTimeout(function(){
@@ -680,19 +694,5 @@ jQuery(document).ready(function($) {
 		}).addTo(map);
 		geojson = L.geoJson();
 	}
-
-	//----------------------------------------------------------------------------------------------------------------
-	// Utility functions
-	//----------------------------------------------------------------------------------------------------------------
-	
-	//Delay manages timed functions, used for search etc.
-
-	var delay = (function(){
-	  var timer = 0;
-	  return function(callback, ms){
-	    clearTimeout (timer);
-	    timer = setTimeout(callback, ms);
-	  };
-	})();
 
 });
