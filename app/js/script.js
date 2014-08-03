@@ -581,15 +581,31 @@ jQuery(document).ready(function($) {
 	});
 
 	function textSearch(text) {
-		var query = text;
+
+		var searchString = getSearchString(text);
+
+		console.log("Searchstring: " + searchString);
 		
 		//set the hidden input box to have the same query string
-		$("#facet_search").val(query);
-	
+		$("#facet_search").val(searchString);
 		moveMapToLocation(text);
 		
 		//Force the facetsearch to start
 		executeSearch();
+	}
+
+	function getSearchString(text) {
+
+		//Check if it's a postcode
+		var n = text.search(/^[0-9]{4}/i);
+
+		if(n >= 0) {
+			return "site_pcode:" + text;
+		} else {
+			//Not a postcode so must be a suburb
+			return "Site_suburb:" + text;
+		}
+
 	}
 
 	function dateSearch(start, end) {
